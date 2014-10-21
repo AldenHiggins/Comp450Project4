@@ -4,8 +4,8 @@ INCLUDE_FLAGS = -I${OMPL_DIR}/include
 LD_FLAGS = -L${OMPL_DIR}/lib -lompl -lompl_app -lboost_program_options -lboost_system
 CXX=c++
 
-PointRobot: planner.o
-	$(CXX) $(CXXFLAGS) -o Planner planner.o $(LD_FLAGS)
+PointRobot: planner.o Environment.o
+	$(CXX) $(CXXFLAGS) -o Planner planner.o Environment.o $(LD_FLAGS)
 
 clean:
 	rm *.o
