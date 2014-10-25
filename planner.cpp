@@ -21,6 +21,8 @@
 #include <ompl/control/SimpleSetup.h>
 #include <fstream>
 #include <math.h>
+#include "Environment.h"
+#include "Projections.h"
 
 #define CIRCLE_ROBOT_RADIUS .2
 #define SQUARE_ROBOT_LENGTH .3
@@ -63,8 +65,8 @@ void pendulumPlan()
 
     // Bind angular velocity bounds
     base::RealVectorBounds velocityBound(1);
-    velocityBound.setLow(-300);
-    velocityBound.setHigh(300);
+    velocityBound.setLow(-13.4);
+    velocityBound.setHigh(13.4);
     angularVelocity->as<base::RealVectorStateSpace>()->setBounds(velocityBound);
 
     // Define start and goal states
@@ -77,6 +79,8 @@ void pendulumPlan()
     goal[0] = boost::math::constants::pi<double>()/2;
     goal[1] = 0;
 
+    // Enables KPIECE planner
+    stateSpace->registerDefaultProjection(base::ProjectionEvaluatorPtr(new PendulumProjection(stateSpace)));
     // Define control space
     control::ControlSpacePtr cmanifold(new control::RealVectorControlSpace(stateSpace, 1));
 
@@ -85,6 +89,7 @@ void pendulumPlan()
     cbounds.setLow(-2);
     cbounds.setHigh(2);
     cmanifold->as<control::RealVectorControlSpace>()->setBounds(cbounds);
+
 
     // Set up control space
     control::SimpleSetup setup(cmanifold);
@@ -105,8 +110,17 @@ void pendulumPlan()
     if(setup.solve(30))
     {
         std::cout << "Found solution:" << std::endl;
-        /// print the path to screen
+
+        // print the path to screen
         setup.getSolutionPath().asGeometric().printAsMatrix(std::cout);
+
+        std::ofstream fout("pathResults");
+        // Start by writing out environment
+        // First write the axis dimensions
+        fout << -13.14 << ":" << 13.14 << std::endl;
+        // Now write the objects
+        fout << 0 << std::endl;
+        setup.getSolutionPath().asGeometric().print(fout);
     }
     else
     {
@@ -117,6 +131,20 @@ void pendulumPlan()
 // State checker for the car robot
 bool carStateValid(const control::SpaceInformation *si, const base::State *state)
 {
+    // Get the problem environment
+    std::vector<Rectangle> obstacles = carEnvironment->getObstacles();
+
+    const base::RealVectorStateSpace::StateType *pos = state->as<base::CompoundStateSpace::StateType>()->
+        as<base::SE2StateSpace::StateType>(0)->as<base::RealVectorStateSpace::StateType>(0);
+    for (int obstacleIndex = 0; obstacleIndex < obstacles.size(); obstacleIndex++)
+    {
+        Rectangle obstacle = obstacles[obstacleIndex];
+        if (pos->values[0] > obstacle.bottomLeftCorner.x && pos->values[0] < obstacle.bottomRightCorner.x
+         && pos->values[1] > obstacle.bottomLeftCorner.y && pos->values[1] < obstacle.topLeftCorner.y)
+        {
+            return false;
+        }    
+    }
     return true;
 }
 
@@ -177,6 +205,8 @@ void carPlan()
     goal[2] = 0;
     goal[3] = 0;
 
+    // Enables KPIECE planner
+    // stateSpace->registerDefaultProjection(base::ProjectionEvaluatorPtr(new CarProjection(stateSpace)));
     // Define control space
     control::ControlSpacePtr cmanifold(new control::RealVectorControlSpace(stateSpace, 2));
 
@@ -208,9 +238,25 @@ void carPlan()
     // Give the problem 30 seconds to solve
     if(setup.solve(30))
     {
-        std::cout << "Found solution:" << std::endl;
         /// print the path to screen
+        std::cout << "Found solution:" << std::endl;
         setup.getSolutionPath().asGeometric().printAsMatrix(std::cout);
+
+        std::ofstream fout("pathResults");
+        // Start by writing out environment
+        // First write the axis dimensions
+        fout << carEnvironment->getStartAxis() << ":" << carEnvironment->getEndAxis() << std::endl;
+        // Now write the objects
+        std::vector<Rectangle> objects = carEnvironment->getObstacles();
+        fout << objects.size() << std::endl;
+        for (int objectIterator = 0; objectIterator < objects.size(); objectIterator++){
+            Rectangle object = objects[objectIterator];
+            fout << object.bottomLeftCorner.x << ":" << object.bottomLeftCorner.y << ":"
+             << object.bottomRightCorner.x << ":" << object.bottomRightCorner.y << ":"
+             << object.topLeftCorner.x << ":" << object.topLeftCorner.y << ":"
+             << object.topRightCorner.x << ":" << object.topRightCorner.y << std::endl;
+        }
+        setup.getSolutionPath().asGeometric().print(fout);
     }
     else
     {

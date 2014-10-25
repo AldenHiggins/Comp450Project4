@@ -13,41 +13,25 @@ Environment::Environment()
 	std::vector<Point> topLeft;
 	std::vector<Point> topRight;
 
+	addPoint(&botLeft,-10,6);
+	addPoint(&botRight,10,6);
+	addPoint(&topLeft,-10,8);
+	addPoint(&topRight,10,8);
 
-	addPoint(&botLeft,2.5,1);
-	addPoint(&botRight,3,1);
-	addPoint(&topLeft,2.5,2);
-	addPoint(&topRight,3,2);
+	addPoint(&botLeft,-10,-4);
+	addPoint(&botRight,0,-4);
+	addPoint(&topLeft,-10,4);
+	addPoint(&topRight,0,4);
 
-	addPoint(&botLeft,2,6);
-	addPoint(&botRight,7,6);
-	addPoint(&topLeft,2,7);
-	addPoint(&topRight,7,7);
+	addPoint(&botLeft,3,-4);
+	addPoint(&botRight,10,-4);
+	addPoint(&topLeft,3,4);
+	addPoint(&topRight,10,4);
 
-	addPoint(&botLeft,4,2);
-	addPoint(&botRight,5,2);
-	addPoint(&topLeft,4,4);
-	addPoint(&topRight,5,4);
-
-	addPoint(&botLeft,6,2);
-	addPoint(&botRight,7,2);
-	addPoint(&topLeft,6,5.8);
-	addPoint(&topRight,7,5.8);
-
-	addPoint(&botLeft,2,9);
-	addPoint(&botRight,3,9);
-	addPoint(&topLeft,2,10);
-	addPoint(&topRight,3,10);
-
-	addPoint(&botLeft,4,7);
-	addPoint(&botRight,5,7);
-	addPoint(&topLeft,4,9);
-	addPoint(&topRight,5,9);
-
-	addPoint(&botLeft,7,9);
-	addPoint(&botRight,8,9);
-	addPoint(&topLeft,7,10);
-	addPoint(&topRight,8,10);
+	addPoint(&botLeft,-10,-10);
+	addPoint(&botRight,10,-10);
+	addPoint(&topLeft,-10,-6);
+	addPoint(&topRight,10,-6);
 
 	for (int rectangleIndex = 0; rectangleIndex < botLeft.size(); rectangleIndex++)
 	{
@@ -59,7 +43,7 @@ Environment::Environment()
 		obstacles.push_back(newRec);
 	}
 
-	startAxisValue = 0;
+	startAxisValue = -10;
 	endAxisValue = 10;
 }
 
