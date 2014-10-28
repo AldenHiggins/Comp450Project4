@@ -37,6 +37,7 @@
 #include "RGRRT.h"
 #include "ompl/base/goals/GoalSampleableRegion.h"
 #include "ompl/tools/config/SelfConfig.h"
+#include "ompl/control/spaces/RealVectorControlSpace.h"
 #include <limits>
 #include <fstream>
 
@@ -103,6 +104,7 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
 	
 		ompl::control::ControlSpacePtr CSpace = siC_->getControlSpace();
 		ompl::control::ControlSamplerPtr ctrlSampler = CSpace->allocControlSampler();
+		base::RealVectorBounds bounds = siC_->getControlSpace()->as<RealVectorControlSpace>()->getBounds();
 
 	//std::cout << "a\n";
     while (const base::State *st = pis_.nextStart())
@@ -116,16 +118,24 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
         nn_->add(tmotion);
 	//std::cout << "b\n";
 
+	
+		
 		for (int i = 0; i < 10; i++) {
-			ompl::control::Control * ControlSamp = siC_->allocControl();
-			ctrlSampler->sample(ControlSamp);
+			double val[1];
+			val[0] = bounds.low[0] + (bounds.high[0] - bounds.low[0]) * i/9;
+			RealVectorControlSpace::ControlType * ControlSamp = new RealVectorControlSpace::ControlType();
+
+			ControlSamp->values = val;
 			base::State* result = si_->allocState();
-			siC_->propagate(tmotion->getState(), ControlSamp, 10.0, result);
+			siC_->propagate(tmotion->getState(), ControlSamp, 1, result);
 			TreeMotion* newMotion = new TreeMotion(siC_, ctrlSampler);
 	        si_->copyState(newMotion->state, result);
-	        siC_->nullControl(newMotion->control);
-
-			tmotion->ReachableSet->add(newMotion);
+	        siC_->copyControl(newMotion->control, ControlSamp);
+			if (si_->isValid(newMotion->state)) {
+				std::cout << val[0];
+				std::cout << "\n";
+				tmotion->ReachableSet->add(newMotion);
+			}
 		}	
 	//std::cout << "c\n";
 
@@ -171,12 +181,21 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
 
         /* find closest state in the tree */
         TreeMotion *nmotion = (TreeMotion*)nn_->nearest(rmotion);
-		
-	//	std::cout << "foo\n"; 
-		for (int j = 0; j < 10; j++) {
-	//		nmotion->ReachableSet[j];
-			
-		}		
+		TreeMotion *nearestReachableState = (TreeMotion*)nmotion->ReachableSet->nearest(rmotion);
+		boost::shared_ptr< NearestNeighbors<Motion*> > temp;
+        temp.reset(tools::SelfConfig::getDefaultNearestNeighbors<Motion*>(si_->getStateSpace()));
+	    temp->setDistanceFunction(boost::bind(&RGRRT::distanceFunction, this, _1, _2));
+		temp->add(nmotion);
+		temp->add(nearestReachableState);
+		TreeMotion *nearestNode = (TreeMotion*)temp->nearest(rmotion);
+		if (nmotion == nearestNode) {
+//			std::cout << "cool beans\n";
+			continue;
+		}
+		else {
+			std::cout << "cool beans\n";
+		}
+		rmotion = nearestReachableState;
 		
         /* sample a random control that attempts to go towards the random state, and also sample a control duration */
         unsigned int cd = controlSampler_->sampleTo(rctrl, nmotion->control, nmotion->state, rmotion->state);
@@ -211,15 +230,22 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
 	//std::cout << "d\n";
 
 					for (int i = 0; i < 10; i++) {
-						ompl::control::Control * ControlSamp = siC_->allocControl();
-						ctrlSampler->sample(ControlSamp);
+						double val[1];
+						val[0] = bounds.low[0] + (bounds.high[0] - bounds.low[0]) * i/9;
+			
+						RealVectorControlSpace::ControlType * ControlSamp = new RealVectorControlSpace::ControlType();
+
+						ControlSamp->values = val;
+
 						base::State* result = si_->allocState();
-						siC_->propagate(motion->getState(), ControlSamp, 10.0, result);
+						siC_->propagate(motion->getState(), ControlSamp, 1, result);
 						TreeMotion* newMotion = new TreeMotion(siC_, ctrlSampler);
 						si_->copyState(newMotion->state, result);
-						siC_->nullControl(newMotion->control);
+				        siC_->copyControl(newMotion->control, ControlSamp);
 
-						motion->ReachableSet->add(newMotion);
+						if (si_->isValid(newMotion->state)) {
+							motion->ReachableSet->add(newMotion);
+						}
 
 					}	
 			
@@ -270,16 +296,25 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
                 nn_->add(motion);
 
 					for (int i = 0; i < 10; i++) {
-						ompl::control::Control * ControlSamp = siC_->allocControl();
-						ctrlSampler->sample(ControlSamp);
+						double val[1];
+						val[0] = bounds.low[0] + (bounds.high[0] - bounds.low[0]) * i/9;
+			
+						RealVectorControlSpace::ControlType * ControlSamp = new RealVectorControlSpace::ControlType();
+						std::cout << val[0];
+						std::cout << "\n";
+			
+						ControlSamp->values = val;
+
 						base::State* result = si_->allocState();
-						siC_->propagate(motion->getState(), ControlSamp, 10.0, result);
+						siC_->propagate(motion->getState(), ControlSamp, 1, result);
 
 						TreeMotion* newMotion = new TreeMotion(siC_, ctrlSampler);
 						si_->copyState(newMotion->state, result);
-						siC_->nullControl(newMotion->control);
+				        siC_->copyControl(newMotion->control, ControlSamp);
 
-						motion->ReachableSet->add(newMotion);
+						if (si_->isValid(newMotion->state)) {
+							motion->ReachableSet->add(newMotion);
+						}
 					}	
 //				std::cout << "g\n";
 
