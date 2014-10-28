@@ -38,6 +38,7 @@
 #include "ompl/base/goals/GoalSampleableRegion.h"
 #include "ompl/tools/config/SelfConfig.h"
 #include <limits>
+#include <fstream>
 
 ompl::control::RGRRT::RGRRT(const SpaceInformationPtr &si) : base::Planner(si, "RGRRT")
 {
@@ -99,13 +100,37 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
     base::Goal                   *goal = pdef_->getGoal().get();
     base::GoalSampleableRegion *goal_s = dynamic_cast<base::GoalSampleableRegion*>(goal);
 
+	
+		ompl::control::ControlSpacePtr CSpace = siC_->getControlSpace();
+		ompl::control::ControlSamplerPtr ctrlSampler = CSpace->allocControlSampler();
+
+	std::cout << "a\n";
     while (const base::State *st = pis_.nextStart())
     {
-        Motion *motion = new Motion(siC_);
-        si_->copyState(motion->state, st);
-        siC_->nullControl(motion->control);
-        nn_->add(motion);
+        TreeMotion *tmotion = new TreeMotion(siC_,ctrlSampler);
+		if (!tmotion->ReachableSet)
+			tmotion->ReachableSet.reset(tools::SelfConfig::getDefaultNearestNeighbors<Motion*>(si_->getStateSpace()));
+		tmotion->ReachableSet->setDistanceFunction(boost::bind(&RGRRT::distanceFunction, this, _1, _2));
+        si_->copyState(tmotion->state, st);
+        siC_->nullControl(tmotion->control);
+        nn_->add(tmotion);
+	std::cout << "b\n";
+
+		for (int i = 0; i < 10; i++) {
+			ompl::control::Control * ControlSamp = siC_->allocControl();
+			ctrlSampler->sample(ControlSamp);
+			base::State* result = si_->allocState();
+			siC_->propagate(tmotion->getState(), ControlSamp, 10.0, result);
+			TreeMotion* newMotion = new TreeMotion(siC_, ctrlSampler);
+	        si_->copyState(newMotion->state, result);
+	        siC_->nullControl(newMotion->control);
+
+			tmotion->ReachableSet->add(newMotion);
+		}	
+	std::cout << "c\n";
+
     }
+
 
     if (nn_->size() == 0)
     {
@@ -130,12 +155,6 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
     base::State  *xstate = si_->allocState();
 
 
-	ompl::control::ControlSpacePtr CSpace;
-	CSpace = siC_->getControlSpace();
-	ompl::control::Control * ControlLimits = siC_->allocControl();
-	ompl::control::ControlSamplerPtr ctrlSampler = CSpace->allocControlSampler();
-
-
 
     while (ptc == false)
     {
@@ -149,9 +168,16 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
 
 
 
-        /* find closest state in the tree */
-        Motion *nmotion = nn_->nearest(rmotion);
 
+        /* find closest state in the tree */
+        TreeMotion *nmotion = (TreeMotion*)nn_->nearest(rmotion);
+		
+		std::cout << "foo\n"; 
+		for (int j = 0; j < 10; j++) {
+	//		nmotion->ReachableSet[j];
+			
+		}		
+		
         /* sample a random control that attempts to go towards the random state, and also sample a control duration */
         unsigned int cd = controlSampler_->sampleTo(rctrl, nmotion->control, nmotion->state, rmotion->state);
 
@@ -169,7 +195,11 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
                 for ( ; p < pstates.size(); ++p)
                 {
                     /* create a motion */
-                    Motion *motion = new Motion();
+                    TreeMotion *motion = new TreeMotion(siC_,ctrlSampler);
+					if (!motion->ReachableSet)
+						motion->ReachableSet.reset(tools::SelfConfig::getDefaultNearestNeighbors<Motion*>(si_->getStateSpace()));
+					motion->ReachableSet->setDistanceFunction(boost::bind(&RGRRT::distanceFunction, this, _1, _2));
+        
                     motion->state = pstates[p];
                     //we need multiple copies of rctrl
                     motion->control = siC_->allocControl();
@@ -178,6 +208,23 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
                     motion->parent = lastmotion;
                     lastmotion = motion;
                     nn_->add(motion);
+	std::cout << "d\n";
+
+					for (int i = 0; i < 10; i++) {
+						ompl::control::Control * ControlSamp = siC_->allocControl();
+						ctrlSampler->sample(ControlSamp);
+						base::State* result = si_->allocState();
+						siC_->propagate(motion->getState(), ControlSamp, 10.0, result);
+						TreeMotion* newMotion = new TreeMotion(siC_, ctrlSampler);
+						si_->copyState(newMotion->state, result);
+						siC_->nullControl(newMotion->control);
+
+						motion->ReachableSet->add(newMotion);
+
+					}	
+			
+	std::cout << "e\n";
+
                     double dist = 0.0;
                     solved = goal->isSatisfied(motion->state, &dist);
                     if (solved)
@@ -207,14 +254,35 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
         {
             if (cd >= siC_->getMinControlDuration())
             {
+	std::cout << "f\n";
+
                 /* create a motion */
-                Motion *motion = new Motion(siC_);
+                TreeMotion *motion = new TreeMotion(siC_,ctrlSampler);
+				if (!motion->ReachableSet)
+					motion->ReachableSet.reset(tools::SelfConfig::getDefaultNearestNeighbors<Motion*>(si_->getStateSpace()));
+				motion->ReachableSet->setDistanceFunction(boost::bind(&RGRRT::distanceFunction, this, _1, _2));
+        
                 si_->copyState(motion->state, rmotion->state);
                 siC_->copyControl(motion->control, rctrl);
                 motion->steps = cd;
                 motion->parent = nmotion;
 
                 nn_->add(motion);
+
+					for (int i = 0; i < 10; i++) {
+						ompl::control::Control * ControlSamp = siC_->allocControl();
+						ctrlSampler->sample(ControlSamp);
+						base::State* result = si_->allocState();
+						siC_->propagate(motion->getState(), ControlSamp, 10.0, result);
+
+						TreeMotion* newMotion = new TreeMotion(siC_, ctrlSampler);
+						si_->copyState(newMotion->state, result);
+						siC_->nullControl(newMotion->control);
+
+						motion->ReachableSet->add(newMotion);
+					}	
+//				std::cout << "g\n";
+
                 double dist = 0.0;
                 bool solv = goal->isSatisfied(motion->state, &dist);
                 if (solv)
